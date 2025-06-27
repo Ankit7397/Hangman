@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hangman Game</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to bottom right, #e0f7fa, #dbeafe);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 16px;
+      padding: 20px;
+      max-width: 700px;
+      width: 100%;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+      font-size: 2.5rem;
+      background: linear-gradient(to right, #0f172a, #475569);
+      color: transparent;
+      -webkit-background-clip: text;
+    }
+    canvas {
+      background: #fff;
+      border: 2px solid #cbd5e1;
+      border-radius: 8px;
+      display: block;
+      margin: 20px auto;
+    }
+    .word-display {
+      text-align: center;
+      font-size: 2rem;
+      letter-spacing: 0.6em;
+      padding: 20px;
+      background: #f1f5f9;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .keyboard {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .keyboard-row {
+      display: flex;
+      gap: 8px;
+    }
+    .key {
+      width: 35px;
+      height: 35px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: 0.2s;
+      background-color: #e2e8f0;
+    }
+    .key.correct {
+      background-color: #22c55e;
+      color: white;
+    }
+    .key.wrong {
+      background-color: #ef4444;
+      color: white;
+    }
+    .key:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .status {
+      text-align: center;
+      font-size: 1.2rem;
+      margin: 20px;
+      font-weight: bold;
+    }
+    .won {
+      color: #10b981;
+    }
+    .lost {
+      color: #ef4444;
+    }
+    .btn {
+      background: linear-gradient(to right, #06b6d4, #3b82f6);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      display: block;
+      margin: 0 auto;
+      border: none;
+      margin-top: 20px;
+    }
+    /* Badges */
+    .badges {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+
+    .badge {
+      padding: 8px 16px;
+      border-radius: 9999px;
+      font-weight: bold;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      border: 1px solid transparent;
+    }
+
+    .badge.red {
+      background-color: #fee2e2;
+      color: #b91c1c;
+      border-color: #fecaca;
+    }
+
+    .badge.blue {
+      background-color: #dbeafe;
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+    }
+
+    .badge.green {
+      background-color: #d1fae5;
+      color: #065f46;
+      border-color: #a7f3d0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Hangman</h1>
+    <canvas id="hangmanCanvas" width="200" height="250"></canvas>
+    <div class="word-display" id="wordDisplay">_ _ _ _ _</div>
+
+    <!-- ✅ Status Badges -->
+    
+    <div class="keyboard" id="keyboard"></div>
+    <br>
+    <div class="badges">
+      <div class="badge red" id="wrongBadge">💀 Wrong: 0 / 6</div>
+      <div class="badge blue" id="guessedBadge">🎯 Guessed: 0</div>
+      <div class="badge green" id="lettersBadge">⚡ Letters: 0</div>
+    </div>
+    <div class="status" id="gameStatus"></div>
+    <button class="btn" onclick="startGame()">New Game</button>
+  </div>
+
+  <script>
+    const words = [
+      "python", "banana", "hangman", "keyboard", "developer", "rocket", "ocean", "mystery",
+      "apple", "orange", "grape", "mango", "elephant", "giraffe", "tiger", "lion", "zebra",
+      "computer", "monitor", "internet", "puzzle", "secret", "adventure", "friend", "family",
+      "school", "college", "teacher", "student", "engineer", "doctor", "artist", "scientist",
+      "planet", "galaxy", "universe", "asteroid", "comet", "weather", "storm", "rainbow",
+      "mountain", "valley", "desert", "island", "castle", "village", "forest", "canyon",
+      "guitar", "violin", "piano", "trumpet", "drums", "holiday", "journey", "courage",
+      "honesty", "freedom", "justice", "sunrise", "sunset", "volcano", "earthquake"
+    ];
+
+    const qwertyLayout = [
+      ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+      ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
+      ["z", "x", "c", "v", "b", "n", "m"]
+    ];
+
+    let selectedWord = "";
+    let correctLetters = [];
+    let guessedLetters = [];
+    let wrongGuesses = 0;
+    const maxWrong = 6;
+
+    const wordDisplay = document.getElementById("wordDisplay");
+    const keyboardDiv = document.getElementById("keyboard");
+    const gameStatus = document.getElementById("gameStatus");
+    const canvas = document.getElementById("hangmanCanvas");
+    const ctx = canvas.getContext("2d");
+
+    function startGame() {
+      selectedWord = words[Math.floor(Math.random() * words.length)];
+      correctLetters = Array(selectedWord.length).fill("_");
+      guessedLetters = [];
+      wrongGuesses = 0;
+      gameStatus.innerText = "";
+      drawHangman(0);
+      updateDisplay();
+      renderKeyboard();
+
+      // Update status badges
+      document.getElementById("wrongBadge").innerText = `💀 Wrong: 0 / ${maxWrong}`;
+      document.getElementById("guessedBadge").innerText = `🎯 Guessed: 0`;
+      document.getElementById("lettersBadge").innerText = `⚡ Letters: ${selectedWord.length}`;
+    }
+
+    function updateDisplay() {
+      wordDisplay.innerText = correctLetters.join(" ");
+    }
+
+    function handleGuess(letter, btn) {
+      if (guessedLetters.includes(letter)) return;
+      guessedLetters.push(letter);
+
+      if (selectedWord.includes(letter)) {
+        selectedWord.split("").forEach((char, i) => {
+          if (char === letter) correctLetters[i] = letter;
+        });
+        btn.classList.add("correct");
+      } else {
+        wrongGuesses++;
+        drawHangman(wrongGuesses);
+        btn.classList.add("wrong");
+      }
+
+      btn.disabled = true;
+      updateDisplay();
+      checkGameStatus();
+
+      // Update status badges
+      document.getElementById("guessedBadge").innerText = `🎯 Guessed: ${guessedLetters.length}`;
+      document.getElementById("wrongBadge").innerText = `💀 Wrong: ${wrongGuesses} / ${maxWrong}`;
+    }
+
+    function checkGameStatus() {
+      if (!correctLetters.includes("_")) {
+        gameStatus.innerText = "🎉 You Won!";
+        gameStatus.className = "status won";
+        disableKeyboard();
+      } else if (wrongGuesses >= maxWrong) {
+        gameStatus.innerHTML = `💀 You Lost! Word: <b>${selectedWord}</b>`;
+        gameStatus.className = "status lost";
+        correctLetters = selectedWord.split("");
+        updateDisplay();
+        disableKeyboard();
+      }
+    }
+
+    function disableKeyboard() {
+      document.querySelectorAll(".key").forEach(btn => btn.disabled = true);
+    }
+
+    function renderKeyboard() {
+      keyboardDiv.innerHTML = "";
+      qwertyLayout.forEach(row => {
+        const rowDiv = document.createElement("div");
+        rowDiv.className = "keyboard-row";
+        row.forEach(letter => {
+          const btn = document.createElement("button");
+          btn.innerText = letter.toUpperCase();
+          btn.className = "key";
+          btn.onclick = () => handleGuess(letter, btn);
+          rowDiv.appendChild(btn);
+        });
+        keyboardDiv.appendChild(rowDiv);
+      });
+    }
+
+    function drawHangman(step) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#333";
+
+      // Stand
+      ctx.beginPath();
+      ctx.moveTo(20, 230);
+      ctx.lineTo(180, 230);
+      ctx.moveTo(50, 230);
+      ctx.lineTo(50, 20);
+      ctx.lineTo(130, 20);
+      ctx.lineTo(130, 50);
+      ctx.stroke();
+
+      if (step > 0) {
+        // Head
+        ctx.beginPath();
+        ctx.arc(130, 70, 20, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (step > 1) {
+        // Body
+        ctx.beginPath();
+        ctx.moveTo(130, 90);
+        ctx.lineTo(130, 160);
+        ctx.stroke();
+      }
+      if (step > 2) {
+        // Left arm
+        ctx.beginPath();
+        ctx.moveTo(130, 110);
+        ctx.lineTo(100, 140);
+        ctx.stroke();
+      }
+      if (step > 3) {
+        // Right arm
+        ctx.beginPath();
+        ctx.moveTo(130, 110);
+        ctx.lineTo(160, 140);
+        ctx.stroke();
+      }
+      if (step > 4) {
+        // Left leg
+        ctx.beginPath();
+        ctx.moveTo(130, 160);
+        ctx.lineTo(100, 200);
+        ctx.stroke();
+      }
+      if (step > 5) {
+        // Right leg
+        ctx.beginPath();
+        ctx.moveTo(130, 160);
+        ctx.lineTo(160, 200);
+        ctx.stroke();
+      }
+    }
+
+    // Start the first game on load
+    startGame();
+  </script>
+</body>
+</html>
